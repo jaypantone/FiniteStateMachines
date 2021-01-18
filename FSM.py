@@ -88,7 +88,13 @@ class FiniteStateMachine:
 
         counts = [0 for i in range(self.num_states)]
         counts[self.start] = 1
-        for step in tqdm(range(length), dynamic_ncols=True, desc="Enumerating..."):
+
+        lengths = (
+            range(length)
+            if not verbose
+            else tqdm(range(length), dynamic_ncols=True, desc="Enumerating...")
+        )
+        for step in lengths:
             next_counts = [0 for i in range(self.num_states)]
 
             for (state, letter), next_state in self.transitions.items():

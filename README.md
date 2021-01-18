@@ -1,0 +1,27 @@
+# FiniteStateMachines
+
+This is a Python class to perform basic operations on finite state machines,
+including union, intersection, and minimization.
+
+Requires the `tqdm` library which can be inatlled via `pip`.
+
+## Usage
+```python
+>>> from FSM import FiniteStateMachine as FSM
+
+>>> M = FSM.fsm_for_words_avoiding("000", alphabet=["0","1"])
+>>> M.smart_enumeration(10)
+[1, 2, 4, 7, 13, 24, 44, 81, 149, 274, 504]
+
+>>> N = FSM.fsm_for_words_avoiding("101", alphabet=["0","1"])
+>>> N.smart_enumeration(10)
+[1, 2, 4, 7, 12, 21, 37, 65, 114, 200, 351]
+
+>>> M.intersection(N).smart_enumeration(10)
+[1, 2, 4, 6, 9, 13, 19, 28, 41, 60, 88]
+
+>>> M.union(N).smart_enumeration(10)
+[1, 2, 4, 8, 16, 32, 62, 118, 222, 414, 767]
+```
+
+Questions, comments, and improvements welcome!
