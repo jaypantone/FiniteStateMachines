@@ -24,4 +24,6 @@ Requires the `tqdm` library which can be inatlled via `pip`.
 [1, 2, 4, 8, 16, 32, 62, 118, 222, 414, 767]
 ```
 
+[![DOI](https://zenodo.org/badge/330728356.svg)](https://zenodo.org/badge/latestdoi/330728356)
+
 Questions, comments, and improvements welcome!
