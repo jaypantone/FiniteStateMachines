@@ -26,6 +26,7 @@ Requires the `tqdm` library which can be inatlled via `pip`.
 
 If this code was useful to you in your work, please consider citing it. To generate a BibTeX entry (or another format), click the badge below and locate the "Cite As" section.
 
-[![DOI](https://zenodo.org/badge/330728356.svg)](https://zenodo.org/badge/latestdoi/330728356)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4592556.svg)](https://zenodo.org/badge/latestdoi/330728356)
+
 
 Questions, comments, and improvements welcome!
