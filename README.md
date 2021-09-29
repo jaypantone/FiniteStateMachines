@@ -3,11 +3,11 @@
 This is a Python class to perform basic operations on finite state machines,
 including union, intersection, and minimization.
 
-Requires the `tqdm` library which can be inatlled via `pip`.
+It can be installed via pip with the command `pip install finite_state_machines`.
 
 ## Usage
 ```python
->>> from FSM import FiniteStateMachine as FSM
+>>> from finite_state_machines import FiniteStateMachine as FSM
 
 >>> M = FSM.fsm_for_words_avoiding("000", alphabet=["0","1"])
 >>> M.smart_enumeration(10)
