@@ -396,12 +396,16 @@ class FiniteStateMachine:
 
         if not self.explicit_garbage:
             raise Exception("cannot minimize without explicit garbage")
-        eq_classes = set(
-            [
-                frozenset(self.accepting),
-                frozenset(set(range(self.num_states)).difference(self.accepting)),
-            ]
-        )
+
+        eq_classes = []
+        if len(self.accepting) != 0:
+            eq_classes.append(frozenset(self.accepting))
+        if len(self.accepting) != self.num_states:
+            eq_classes.append(
+                frozenset(set(range(self.num_states)).difference(self.accepting))
+            )
+        eq_classes = set(eq_classes)
+
         processing = set([frozenset(self.accepting)])
 
         show_buffer = verbose
@@ -448,8 +452,8 @@ class FiniteStateMachine:
                     eq_classes.remove(checking_set)
                     eq_classes.add(XintY)
                     eq_classes.add(XdiffY)
-                    if states_that_move_into_active_state in processing:
-                        processing.remove(states_that_move_into_active_state)
+                    if checking_set in processing:
+                        processing.remove(checking_set)
                         processing.add(XintY)
                         processing.add(XdiffY)
                     else:
