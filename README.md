@@ -17,6 +17,9 @@ It can be installed via pip with the command `pip install finite_state_machines`
 >>> N.smart_enumeration(10)
 [1, 2, 4, 7, 12, 21, 37, 65, 114, 200, 351]
 
+>>> M.intersection(N).words_generated(3)
+{'001', '010', '011', '100', '110', '111'}
+
 >>> M.intersection(N).smart_enumeration(10)
 [1, 2, 4, 6, 9, 13, 19, 28, 41, 60, 88]
 
@@ -26,7 +29,7 @@ It can be installed via pip with the command `pip install finite_state_machines`
 
 If this code was useful to you in your work, please consider citing it. To generate a BibTeX entry (or another format), click the badge below and locate the "Cite As" section.
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4592556.svg)](https://zenodo.org/badge/latestdoi/330728356)
+[![DOI](https://zenodo.org/badge/330728356.svg)](https://zenodo.org/badge/latestdoi/330728356)
 
 
 Questions, comments, and improvements welcome!

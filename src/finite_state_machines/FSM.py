@@ -1,11 +1,21 @@
+"""
+This module provides the FiniteStateMachine class.
+"""
 import itertools
-from tqdm import tqdm
+from collections import defaultdict
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 
 # Adapted from: https://stackoverflow.com/a/34325723/13526914
-def printProgressBar(
-    iteration, total, prefix="", suffix="", decimals=1, length=100, fill="█"
-):
+def print_progress_bar(
+    iteration: int,
+    total: int,
+    prefix: str = "",
+    suffix: str = "",
+    decimals: int = 1,
+    length: int = 100,
+    fill: str = "█",
+) -> None:
     """
     Call in a loop to create terminal progress bar
     @params:
@@ -18,9 +28,9 @@ def printProgressBar(
         fill        - Optional  : bar fill character (Str)
     """
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filledLength = int(length * iteration // total)
-    bar = fill * filledLength + "-" * (length - filledLength)
-    print("\r%s |%s| %s%% %s" % (prefix, bar, percent, suffix), end="\r")
+    filled_length = int(length * iteration // total)
+    bar_data = fill * filled_length + "-" * (length - filled_length)
+    print("\r%s |%s| %s%% %s" % (prefix, bar_data, percent, suffix), end="\r")
 
 
 class FiniteStateMachine:
@@ -33,12 +43,21 @@ class FiniteStateMachine:
             transition to -1 is explicit garbage state
     """
 
-    def __init__(self, alphabet, num_states, start, accepting, transitions):
+    def __init__(
+        self,
+        alphabet: Set[str],
+        num_states: int,
+        start: int,
+        accepting: Set[int],
+        transitions: Dict[Tuple[int, str], int],
+    ):
         self.alphabet = alphabet
         self.num_states = num_states
         self.start = start
         self.accepting = accepting
         self.transitions = transitions
+
+        self._word_cache: Dict[int, Dict[int, Set[str]]] = dict()
 
         # It is assumed that there is no implicit garbage state if all possible
         # transitions are present.
@@ -47,7 +66,7 @@ class FiniteStateMachine:
         else:
             self.explicit_garbage = False
 
-    def add_explicit_garbage(self):
+    def add_explicit_garbage(self) -> None:
         """
         Adds an explicit garbage state rather than relying on an implicit one.
         This is necessary for the minimize function to operate correctly.
@@ -64,22 +83,47 @@ class FiniteStateMachine:
             self.transitions[(garbage_state, letter)] = garbage_state
         self.explicit_garbage = True
 
-    def brute_enumeration(self, length):
+    def brute_enumeration(self, length: int) -> int:
         """
-        Returns the number of accepted words of a given length using brute force checking.
-        You should probably never use this.
+        Returns the number of accepted words of a given length using brute force
+        checking. You should probably never use this.
         """
-        return len(self.words_generated(length))
+        return sum(1 for _ in self.words_generated(length))
 
-    def words_generated(self, length):
+    def brute_words_generated(self, length: int) -> Iterable[str]:
         """
         Returns the list of accepted words of a given length using brute force checking.
         You should probably never use this.
         """
         possible_words = itertools.product(self.alphabet, repeat=length)
-        return [w for w in possible_words if self.process_word(w)]
+        for word in possible_words:
+            word_str = "".join(word)
+            if self.process_word(word_str):
+                yield word_str
 
-    def smart_enumeration(self, length, verbose=False):
+    def words_generated(self, length: int) -> Set[str]:
+        """
+        Returns the set of words of a particular length accepted by the FSM.
+        The result is cached in self.word_cache to speed up the generation to longer
+        lengths.
+        """
+        if length not in self._word_cache:
+            if length == 0:
+                self._word_cache[0] = {self.start: {""}}
+            else:
+                _ = self.words_generated(length - 1)
+                last_words = self._word_cache[length - 1]
+                new_words: Dict[int, Set[str]] = defaultdict(set)
+                for ((old_state, letter), new_state) in self.transitions.items():
+                    if old_state in last_words and new_state in self.accepting:
+                        new_words[new_state].update(
+                            w + letter for w in last_words[old_state]
+                        )
+                self._word_cache[length] = new_words
+
+        return set.union(*self._word_cache[length].values())
+
+    def smart_enumeration(self, length: int) -> List[int]:
         """
         Returns the counting sequence of accepted words up to a given length using
         dynamic programming.
@@ -89,15 +133,10 @@ class FiniteStateMachine:
         counts = [0 for i in range(self.num_states)]
         counts[self.start] = 1
 
-        lengths = (
-            range(length)
-            if not verbose
-            else tqdm(range(length), dynamic_ncols=True, desc="Enumerating...")
-        )
-        for step in lengths:
+        for _ in range(length):
             next_counts = [0 for i in range(self.num_states)]
 
-            for (state, letter), next_state in self.transitions.items():
+            for (state, _), next_state in self.transitions.items():
                 next_counts[next_state] += counts[state]
 
             counts = list(next_counts)
@@ -107,11 +146,11 @@ class FiniteStateMachine:
 
         return enum
 
-    def process_word(self, word):
+    def process_word(self, word_arg: str) -> bool:
         """
         Returns a boolean indicating whether the given word is accepted.
         """
-        word = list(word)
+        word = list(word_arg)
         state = self.start
         for letter in word:
             if (state, letter) not in self.transitions:
@@ -119,21 +158,30 @@ class FiniteStateMachine:
             state = self.transitions[(state, letter)]
         return state in self.accepting
 
-    def union(MA, MB, verbose=False):
+    def union(
+        self, other: "FiniteStateMachine", verbose: bool = False
+    ) -> "FiniteStateMachine":
         """
         Returns a new FiniteStateMachine object that is the union of MA and MB.
         The returned FSM has not been minimized.
         """
-        return FiniteStateMachine.parallel(MA, MB, "union", verbose)
+        return self.parallel(other, "union", verbose)
 
-    def intersection(MA, MB, verbose=False):
+    def intersection(
+        self, other: "FiniteStateMachine", verbose: bool = False
+    ) -> "FiniteStateMachine":
         """
         Returns a new FiniteStateMachine object that is the intersection of MA and MB.
         The returned FSM has not been minimized.
         """
-        return FiniteStateMachine.parallel(MA, MB, "intersection", verbose=verbose)
+        return self.parallel(other, "intersection", verbose=verbose)
 
-    def intersection_of_list(machines, verbose=False, minimize=True):
+    @staticmethod
+    def intersection_of_list(
+        machines: List["FiniteStateMachine"],
+        verbose: bool = False,
+        minimize: bool = True,
+    ) -> "FiniteStateMachine":
         """
         Computes the intersection of a given list with repeated pairwise
         intersections. It first intersects each consecutive pair, then the
@@ -152,8 +200,7 @@ class FiniteStateMachine:
             thisround = 1
             whichround += 1
 
-            i = 0
-            new_machines = []
+            new_machines: List["FiniteStateMachine"] = []
             while len(machines) > 0:
                 if len(machines) >= 2:
                     if verbose:
@@ -164,7 +211,7 @@ class FiniteStateMachine:
                         new_machines.append(
                             FiniteStateMachine.intersection(
                                 machines[0], machines[1], verbose
-                            ).minimize(inplace=False, verify=False, verbose=verbose)
+                            ).minimize(verify=False, verbose=verbose)
                         )
                     else:
                         new_machines.append(
@@ -183,7 +230,11 @@ class FiniteStateMachine:
 
         return machines[0]
 
-    def slower_intersection_of_list(machines, verbose=False, minimize=True):
+    @staticmethod
+    def slower_intersection_of_list(
+        machines: List["FiniteStateMachine"],
+        verbose: bool = False,
+    ) -> "FiniteStateMachine":
         """
         Computes the intersection of a given list with by interesting in one
         new machine at a time. This seems to be the slower way to intersect
@@ -194,12 +245,8 @@ class FiniteStateMachine:
 
         if verbose:
             print("\tIntersecting", len(machines), "FSAs")
-        whichround = 1
 
-        if len(machines) == 0:
-            return -1
-        elif len(machines) == 1:
-            return machines[0]
+        assert len(machines) > 0, "Must give at last one FSM."
 
         M = machines[0]
         for i in range(1, len(machines)):
@@ -213,18 +260,24 @@ class FiniteStateMachine:
                     machines[i].num_states,
                     ")",
                 )
-            M = FiniteStateMachine.intersection(M, machines[i]).minimize(
-                inplace=False, verify=True
-            )
+            M = FiniteStateMachine.intersection(M, machines[i]).minimize(verify=True)
 
         return M
 
-    def parallel(MA, MB, type, verbose=False):
+    def parallel(
+        self,
+        other: "FiniteStateMachine",
+        op_type: str,
+        verbose: bool = False,
+    ) -> "FiniteStateMachine":
         """
         This is mostly a helper function that returns a new machine that runs
-        MA and MB in parallel. It is used to compute unions and intersections
+        self and other in parallel. It is used to compute unions and intersections
         of machines.
         """
+        MA = self
+        MB = other
+
         MA.add_explicit_garbage()
         MB.add_explicit_garbage()
         alphabet = MA.alphabet.union(MB.alphabet)
@@ -240,13 +293,13 @@ class FiniteStateMachine:
 
         transitions = {}
         if verbose and (MA.num_states + MB.num_states > 100):
-            printProgressBar(1, 1, prefix="buffer:", suffix="", length=50)
+            print_progress_bar(1, 1, prefix="buffer:", suffix="", length=50)
         max_so_far = 1
 
         while len(states_to_process) > 0:
             max_so_far = max(max_so_far, len(states_to_process))
             if verbose and (MA.num_states + MB.num_states > 100):
-                printProgressBar(
+                print_progress_bar(
                     len(states_to_process),
                     max_so_far,
                     prefix="buffer:",
@@ -299,23 +352,19 @@ class FiniteStateMachine:
             print("\n\tResult has", len(state_translation), "states.")
 
         # now we need to set accepting states
-        if type == "union":
+        if op_type == "union":
             accepting = set(
-                [
-                    i
-                    for i in range(len(state_translation))
-                    if state_translation[i][0] in MA.accepting
-                    or state_translation[i][1] in MB.accepting
-                ]
+                i
+                for i in range(len(state_translation))
+                if state_translation[i][0] in MA.accepting
+                or state_translation[i][1] in MB.accepting
             )
-        elif type == "intersection":
+        elif op_type == "intersection":
             accepting = set(
-                [
-                    i
-                    for i in range(len(state_translation))
-                    if state_translation[i][0] in MA.accepting
-                    and state_translation[i][1] in MB.accepting
-                ]
+                i
+                for i in range(len(state_translation))
+                if state_translation[i][0] in MA.accepting
+                and state_translation[i][1] in MB.accepting
             )
         else:
             raise Exception("invalid type")
@@ -325,7 +374,9 @@ class FiniteStateMachine:
         )
 
     @staticmethod
-    def fsm_for_words_avoiding(word, alphabet=None):
+    def fsm_for_words_avoiding(
+        word_to_avoid: str, alphabet: Optional[Set[str]] = None
+    ) -> "FiniteStateMachine":
         """
         Returns a FSM that accepts all words avoiding <word>. If alphabet=None,
         then the alphabet is inferred to be the set of symbols appearing in
@@ -337,13 +388,10 @@ class FiniteStateMachine:
         #  ...
         # state len(word)+1 = matched
 
-        if type(word) == str:
-            word = list(word)
-        if type(word) == tuple:
-            word = list(word)
+        word = list(word_to_avoid)
 
         if alphabet is None:
-            alphabet = set(list(word))
+            alphabet = set(word)
         else:
             alphabet = set(alphabet)
 
@@ -362,7 +410,6 @@ class FiniteStateMachine:
 
         # if we're in the middle of a match, we either move ahead or fall back
         for state in range(1, len(word)):
-            word_seen = word[:state]
             for letter in alphabet:
                 if letter == word[state]:
                     transitions[(state, letter)] = state + 1
@@ -386,10 +433,11 @@ class FiniteStateMachine:
         return FiniteStateMachine(alphabet, num_states, start, accepting, transitions)
 
     # https://cs.stackexchange.com/questions/47061/help-with-understanding-hopcrofts-algorithm
-    def minimize(self, inplace=True, verify=False, verbose=False):
+    def minimize(
+        self, verify: bool = False, verbose: bool = False
+    ) -> "FiniteStateMachine":
         """
         Minimizes the FSM using Hopcroft's Algorithm.
-            inplace: If True, modifies the calling object. If False, returns new object.
             verify: If True, performs a rough correctness check at the end.
             verbose: If True, prints intermediate information.
         """
@@ -397,27 +445,26 @@ class FiniteStateMachine:
         if not self.explicit_garbage:
             raise Exception("cannot minimize without explicit garbage")
 
-        eq_classes = []
+        eq_classes = set()
         if len(self.accepting) != 0:
-            eq_classes.append(frozenset(self.accepting))
+            eq_classes.add(frozenset(self.accepting))
         if len(self.accepting) != self.num_states:
-            eq_classes.append(
+            eq_classes.add(
                 frozenset(set(range(self.num_states)).difference(self.accepting))
             )
-        eq_classes = set(eq_classes)
 
         processing = set([frozenset(self.accepting)])
 
         show_buffer = verbose
 
         if show_buffer:
-            printProgressBar(1, 1, prefix="buffer:", suffix="", length=50)
+            print_progress_bar(1, 1, prefix="buffer:", suffix="", length=50)
         max_so_far = 1
 
         while len(processing) > 0:
             max_so_far = max(max_so_far, len(processing))
             if show_buffer:
-                printProgressBar(
+                print_progress_bar(
                     len(processing),
                     max_so_far,
                     prefix="     min buffer:",
@@ -463,24 +510,24 @@ class FiniteStateMachine:
                             processing.add(XdiffY)
 
         # now eq_classes are good to go, make them a list for ordering
-        eq_classes = list(eq_classes)
+        eq_classes_ordered = list(eq_classes)
         # print(eq_classes)
         if verbose:
             print()
 
         # need a backmap to prevent constant calls to index
         back_map = {}
-        for i, eq in enumerate(eq_classes):
+        for i, eq in enumerate(eq_classes_ordered):
             for state in eq:
                 back_map[state] = i
 
         new_alphabet = self.alphabet
-        new_num_states = len(eq_classes)
+        new_num_states = len(eq_classes_ordered)
         new_start = back_map[self.start]
-        new_accepting = set([back_map[acc] for acc in self.accepting])
+        new_accepting = set(back_map[acc] for acc in self.accepting)
 
         new_transitions = {}
-        for i, eq in enumerate(eq_classes):
+        for i, eq in enumerate(eq_classes_ordered):
             for letter in self.alphabet:
                 new_transitions[(i, letter)] = back_map[
                     self.transitions[(list(eq)[0], letter)]
@@ -495,14 +542,6 @@ class FiniteStateMachine:
             if verbose:
                 print("\n\tminimization:", self.num_states, "->", new_num_states)
 
-        if inplace:
-            self.alphabet = new_alphabet
-            self.num_states = new_num_states
-            self.start = new_start
-            self.accepting = new_accepting
-            self.transitions = new_transitions
-            return
-        else:
-            return FiniteStateMachine(
-                new_alphabet, new_num_states, new_start, new_accepting, new_transitions
-            )
+        return FiniteStateMachine(
+            new_alphabet, new_num_states, new_start, new_accepting, new_transitions
+        )
