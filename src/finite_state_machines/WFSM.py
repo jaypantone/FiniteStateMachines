@@ -118,7 +118,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
 
                 new_words: Dict[int, Set[str]] = defaultdict(set)
 
-                for prev_size in range(size - self.max_degree, size):
+                for prev_size in range(max(0, size - self.max_degree), size):
                     for (
                         (old_state, letter),
                         (new_state, weight),
