@@ -3,7 +3,12 @@ This module provides the FiniteStateMachine class.
 """
 import itertools
 from collections import defaultdict
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Tuple, Union
+
+import sympy  # type: ignore
+
+if TYPE_CHECKING:
+    from finite_state_machines import WeightedFiniteStateMachine
 
 
 # Adapted from: https://stackoverflow.com/a/34325723/13526914
@@ -115,13 +120,19 @@ class FiniteStateMachine:
                 last_words = self._word_cache[length - 1]
                 new_words: Dict[int, Set[str]] = defaultdict(set)
                 for ((old_state, letter), new_state) in self.transitions.items():
-                    if old_state in last_words and new_state in self.accepting:
+                    if old_state in last_words:
                         new_words[new_state].update(
                             w + letter for w in last_words[old_state]
                         )
                 self._word_cache[length] = new_words
 
-        return set.union(*self._word_cache[length].values())
+        return set.union(
+            *itertools.chain(
+                self._word_cache[length][state]
+                for state in self.accepting
+                if state in self._word_cache[length]
+            )
+        )
 
     def smart_enumeration(self, length: int) -> List[int]:
         """
@@ -544,4 +555,28 @@ class FiniteStateMachine:
 
         return FiniteStateMachine(
             new_alphabet, new_num_states, new_start, new_accepting, new_transitions
+        )
+
+    def convert_to_WFSM(
+        self, letter_weights: Dict[str, sympy.polys.polytools.Poly]
+    ) -> "WeightedFiniteStateMachine":
+        """
+        Turns this FSM into a weighted FSM (WFSM) by giving each letter a weight.
+        """
+        from .WFSM import WeightedFiniteStateMachine  # pylint: disable=C0415
+
+        assert (
+            set(letter_weights.keys()) == self.alphabet
+        ), "The keys in letter_weights must match self.alphabet."
+        alphabet = self.alphabet
+        num_states = self.num_states
+        start = self.start
+        accepting = self.accepting
+        weighted_transitions: Dict[
+            Tuple[int, str], Tuple[int, Union[sympy.polys.polytools.Poly, sympy.Expr]]
+        ] = dict()
+        for (state, letter), next_state in self.transitions.items():
+            weighted_transitions[(state, letter)] = (next_state, letter_weights[letter])
+        return WeightedFiniteStateMachine(
+            alphabet, num_states, start, accepting, weighted_transitions
         )
