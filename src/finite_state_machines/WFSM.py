@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import Dict, List, Set, Tuple, Union
 
 import sympy  # type: ignore
+from tqdm import tqdm  # type: ignore
 
 from .FSM import FiniteStateMachine
 
@@ -153,7 +154,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
         ]
         counts[-1][self.start] = 1
 
-        for _ in range(size):
+        for _ in tqdm(range(size)):
             counts = counts[1:] + [[0 for i in range(self.num_states)]]
 
             for look_back in range(1, self.max_degree + 1):
@@ -264,7 +265,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
         return wfsm
 
     @staticmethod
-    def convert_WFSM_to_FSM(  # type: ignore
+    def convert_WFSM_to_FSM(
         machines: List["WeightedFiniteStateMachine"],
     ) -> Tuple[
         List[FiniteStateMachine], Dict[str, Tuple[str, sympy.polys.polytools.Poly]]
@@ -316,7 +317,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
         return fsms, back_dict
 
     @staticmethod
-    def convert_FSM_to_WFSM(  # type: ignore
+    def convert_FSM_to_WFSM(
         machine: FiniteStateMachine,
         back_dict: Dict[str, Tuple[str, sympy.polys.polytools.Poly]],
     ) -> "WeightedFiniteStateMachine":
