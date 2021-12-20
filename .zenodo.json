@@ -1,9 +1,7 @@
 {
-    "upload_type": "software",
-    "creators": [
-        {
-            "affiliation": "Marquette University",
-            "name": "Jay Pantone"
-        },
-    ]
+	"upload_type": "software",
+	"creators": [{
+		"affiliation": "Marquette University",
+		"name": "Jay Pantone"
+	}]
 }
