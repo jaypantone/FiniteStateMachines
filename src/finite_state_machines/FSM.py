@@ -126,7 +126,7 @@ class FiniteStateMachine:
                         )
                 self._word_cache[length] = new_words
 
-        return set.union(
+        return set().union(
             *itertools.chain(
                 self._word_cache[length][state]
                 for state in self.accepting
@@ -134,7 +134,7 @@ class FiniteStateMachine:
             )
         )
 
-    def smart_enumeration(self, length: int) -> List[int]:
+    def enumeration(self, length: int) -> List[int]:
         """
         Returns the counting sequence of accepted words up to a given length using
         dynamic programming.
@@ -548,7 +548,7 @@ class FiniteStateMachine:
             T = FiniteStateMachine(
                 new_alphabet, new_num_states, new_start, new_accepting, new_transitions
             )
-            if T.smart_enumeration(20) != self.smart_enumeration(20):
+            if T.enumeration(20) != self.enumeration(20):
                 raise Exception("IncorrectMinimization")
             if verbose:
                 print("\n\tminimization:", self.num_states, "->", new_num_states)

@@ -74,7 +74,7 @@ class CombinatorialFSM:
         self.forward_transitions[state1].add(state2)
         # self.backward_transitions[state2].add(state1)
 
-    def enumeration(self, size: int, quiet: bool = False) -> List[int]:
+    def enumeration(self, size: int, quiet: bool = True) -> List[int]:
         """
         Returns the counting sequence of accepted words up to a given size using
         dynamic programming.
@@ -203,11 +203,11 @@ class CombinatorialFSM:
         for (state1, state2), weight in self.transition_weights.items():
             print(
                 f"M[{state_to_int[state1]},{state_to_int[state2]}] := "
-                f"{weight.as_expr()}:",
+                f"{(weight*-1).as_expr()}:",
                 file=file,
             )
         for index in range(1, num_states + 1):
-            print(f"M[{index},{index}] := 1 - M[{index},{index}]:", file=file)
+            print(f"M[{index},{index}] := 1 + M[{index},{index}]:", file=file)
 
         print("V := Vector(LinearAlgebra[Dimensions](M)[1]):", file=file)
         print("for a in accepting do V[a] := 1: od:", file=file)

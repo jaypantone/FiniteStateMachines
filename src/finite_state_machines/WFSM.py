@@ -8,7 +8,6 @@ from collections import defaultdict
 from typing import Dict, List, Set, Tuple, Union
 
 import sympy  # type: ignore
-from tqdm import tqdm  # type: ignore
 
 from .FSM import FiniteStateMachine
 
@@ -134,7 +133,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
                             )
                 self._word_cache[size] = new_words
 
-        return set.union(
+        return set().union(
             *itertools.chain(
                 self._word_cache[size][state]
                 for state in self.accepting
@@ -142,7 +141,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
             )
         )
 
-    def smart_enumeration(self, size: int) -> List[int]:
+    def enumeration(self, size: int) -> List[int]:
         """
         Returns the counting sequence of accepted words up to a given size using
         dynamic programming.
@@ -154,7 +153,7 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
         ]
         counts[-1][self.start] = 1
 
-        for _ in tqdm(range(size)):
+        for _ in range(size):
             counts = counts[1:] + [[0 for i in range(self.num_states)]]
 
             for look_back in range(1, self.max_degree + 1):
@@ -196,73 +195,6 @@ class WeightedFiniteStateMachine:  # pylint: disable=R0902
                 return False
             (state, _) = self.weighted_transitions[(state, letter)]
         return state in self.accepting
-
-    def union(
-        self, other: "WeightedFiniteStateMachine", verbose: bool = False
-    ) -> "WeightedFiniteStateMachine":
-        """
-        Returns a new WeightedFiniteStateMachine object that is the union of MA and MB.
-        The returned WFSM has not been minimized.
-        """
-        print("WARNING: THIS FUNCTION HAS NOT BEEN EXTENSIVELY TESTED.")
-        fsms, back_dict = WeightedFiniteStateMachine.convert_WFSM_to_FSM([self, other])
-        fsm_union = fsms[0].parallel(fsms[1], "union", verbose)
-        return WeightedFiniteStateMachine.convert_FSM_to_WFSM(fsm_union, back_dict)
-
-    def intersection(
-        self, other: "WeightedFiniteStateMachine", verbose: bool = False
-    ) -> "WeightedFiniteStateMachine":
-        """
-        Returns a new WeightedFiniteStateMachine object that is the intersection of MA
-        and MB. The returned WFSM has not been minimized.
-        """
-        print("WARNING: THIS FUNCTION HAS NOT BEEN EXTENSIVELY TESTED.")
-        fsms, back_dict = WeightedFiniteStateMachine.convert_WFSM_to_FSM([self, other])
-        fsm_int = fsms[0].parallel(fsms[1], "intersection", verbose)
-        return WeightedFiniteStateMachine.convert_FSM_to_WFSM(fsm_int, back_dict)
-
-    @staticmethod
-    def intersection_of_list(
-        machines: List["WeightedFiniteStateMachine"],
-        verbose: bool = False,
-        minimize: bool = True,
-    ) -> "WeightedFiniteStateMachine":
-        """
-        Computes the intersection of a given list with repeated pairwise
-        intersections. It first intersects each consecutive pair, then the
-        pairs of those, etc. This order seems faster in general.
-
-        E.g.: (((A int B) int (C int D)) int ((E int F) int (G int H))) int ....
-        """
-        print("WARNING: THIS FUNCTION HAS NOT BEEN EXTENSIVELY TESTED.")
-        fsms, back_dict = WeightedFiniteStateMachine.convert_WFSM_to_FSM(machines)
-        fsm_int_of_list = FiniteStateMachine.intersection_of_list(
-            fsms, verbose=verbose, minimize=minimize
-        )
-        return WeightedFiniteStateMachine.convert_FSM_to_WFSM(
-            fsm_int_of_list, back_dict
-        )
-
-    # https://cs.stackexchange.com/questions/47061/help-with-understanding-hopcrofts-algorithm
-    def minimize(
-        self, verify: bool = False, verbose: bool = False
-    ) -> "WeightedFiniteStateMachine":
-        """
-        Minimizes the FSM using Hopcroft's Algorithm.
-            verify: If True, performs a rough correctness check at the end.
-            verbose: If True, prints intermediate information.
-        """
-        print("WARNING: THIS FUNCTION HAS NOT BEEN EXTENSIVELY TESTED.")
-        fsms, back_dict = WeightedFiniteStateMachine.convert_WFSM_to_FSM([self])
-        min_fsm = fsms[0].minimize(verify=verify, verbose=verbose)
-        wfsm = WeightedFiniteStateMachine.convert_FSM_to_WFSM(min_fsm, back_dict)
-
-        if verify:
-            assert self.smart_enumeration(20) == wfsm.smart_enumeration(
-                20
-            ), "WFSM minimization failed verification"
-
-        return wfsm
 
     @staticmethod
     def convert_WFSM_to_FSM(
