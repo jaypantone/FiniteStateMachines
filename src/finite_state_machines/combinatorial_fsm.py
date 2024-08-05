@@ -15,6 +15,9 @@ from typing import (
 
 import sympy  # type: ignore
 from tqdm import tqdm  # type: ignore
+from functools import partialmethod
+
+# tqdm.__init__ = partialmethod(tqdm.__init__, disable=True)
 
 Weight = Union[sympy.polys.polytools.Poly, sympy.Expr]
 x = sympy.Symbol("x")
@@ -62,9 +65,9 @@ class CombinatorialFSM:
         """
         self.states.update({state1, state2})
         weight_poly = weight.as_poly(self.main_var)
-        assert (
-            weight_poly.coeff_monomial(1) == 0
-        ), "weights must have a zero constant term"
+        # assert (
+        #     weight_poly.coeff_monomial(1) == 0
+        # ), "weights must have a zero constant term"
         self.max_degree = max(self.max_degree, weight_poly.degree(self.main_var))
 
         self.transition_weights[(state1, state2)] += weight_poly
@@ -91,7 +94,6 @@ class CombinatorialFSM:
 
         loop = range(size) if quiet else tqdm(range(size))
         for _ in loop:
-
             # had to do this in two steps to make mypy happy
             new_dict: DefaultDict[Hashable, Weight] = defaultdict(
                 lambda: sympy.sympify(0)
@@ -105,7 +107,7 @@ class CombinatorialFSM:
                             (old_state, new_state)
                         ]
                         counts[-1][new_state] += (
-                            transition_weight.coeff_monomial(self.main_var ** look_back)
+                            transition_weight.coeff_monomial(self.main_var**look_back)
                             * counts[-1 - look_back][old_state]
                         )
 
@@ -117,7 +119,7 @@ class CombinatorialFSM:
 
         return enum
 
-    def minimize(self) -> "CombinatorialFSM":
+    def minimize(self, verbose=False) -> "CombinatorialFSM":
         """
         Minimization routine. Returns a new CombinatorialFSM object.
         """
@@ -137,7 +139,9 @@ class CombinatorialFSM:
         Signature = Tuple[bool, Set[Tuple[Hashable, Weight]]]
         HashableSignature = Tuple[bool, FrozenSet[Tuple[Hashable, Weight]]]
         out_weights: Dict[Hashable, Signature] = dict()
-        for (state1, state2), weight in self.transition_weights.items():
+        for (state1, state2), weight in tqdm(
+            self.transition_weights.items(), desc="pass 1/4"
+        ):
             if state1 not in out_weights:
                 out_weights[state1] = (state1 in self.accepting, set())
             out_weights[state1][1].add((state2, weight))
@@ -146,7 +150,7 @@ class CombinatorialFSM:
         #   just reversing out_weights
         eq_class_dict: DefaultDict[HashableSignature, Set[Hashable]] = defaultdict(set)
         unassigned_states = set(self.states)
-        for state, sig in out_weights.items():
+        for state, sig in tqdm(out_weights.items(), desc="pass 2/4"):
             eq_class_dict[(sig[0], frozenset(sig[1]))].add(state)
             unassigned_states.remove(state)
         # also need to add an eq class for states that have no out-transitions
@@ -158,11 +162,16 @@ class CombinatorialFSM:
         #  eq_class as well as a dictionary that maps a rep to the eq_class
         representative: Dict[Hashable, Hashable] = dict()
         rep_to_eq_class: DefaultDict[Hashable, Set[Hashable]] = defaultdict(set)
-        for eq_class in eq_class_dict.values():
+        for eq_class in tqdm(eq_class_dict.values(), desc="pass 3/4"):
+            if len(eq_class) > 1:
+                print("The following states are equivalent:")
             rep = min(eq_class)  # type: ignore
             for state in eq_class:
+                if len(eq_class) > 1:
+                    print(state)
                 representative[state] = rep
                 rep_to_eq_class[rep].add(state)
+            print("DONE")
         rep_set = set(representative.values())
 
         newCFSM = CombinatorialFSM(self.main_var)
@@ -170,7 +179,124 @@ class CombinatorialFSM:
         newCFSM.set_start(representative[self.start])
         newCFSM.set_accepting({representative[acc] for acc in self.accepting})
 
-        for state1 in rep_set:
+        for state1 in tqdm(rep_set, desc="pass 4/4"):
+            for state2 in rep_set:
+                new_weight = sum(
+                    self.transition_weights[(state1, dest)]
+                    for dest in rep_to_eq_class[state2]
+                    if (state1, dest) in self.transition_weights
+                )
+                if new_weight != 0:
+                    newCFSM.add_transition(state1, state2, new_weight)
+
+        return newCFSM
+
+    def moore_minimize(self, verbose=False) -> "CombinatorialFSM":
+        """
+        New in-progress minimization routine modeled after the Moore algorithm
+        for DFAs. Returns a new CombinatorialFSM object.
+        """
+        # Credit to http://www-igm.univ-mlv.fr/~berstel/Exposes/2009-06-08MinimisationLiege.pdf
+        #   for helping me understand Moore's algorithm
+        # Minimization Algorithm:
+        #  Start with a partition of the states into accepting and non-accepting.
+        #  For a state p, define F_p^h(x) to be the total weight of all accepted
+        #    walks of length <= h starting at p. Note that this is a polynomial
+        #    in the edge weights.
+        #  Define p ~_h q if F_p^h(x) = F_q^(x).
+        #  Claim: p ~_(h+1) q if
+        #    (1) p ~_h q,
+        #    (2) sum over edges e: p -> s of wt(e)*F_s^h(x)
+        #        =
+        #        sum over edges e: q -> s of wt(e)*F_s^h(x)
+        #  Refine the start partition by ~_1 then ~_2 etc until there is no change,
+        #    then you're done.
+
+        assert self.accepting is not None
+
+        # Initial values of F_p^0
+        Fph: Dict[Hashable, Weight] = {s: 1 for s in self.states}
+
+        # Initial partition, stored as a dict from states to representatives
+        accepting_repr = next(iter(self.accepting))
+        try:
+            nonaccepting_repr = next(
+                state for state in self.states if state not in self.accepting
+            )
+        except StopIteration:
+            nonaccepting_repr = None
+        partition = {
+            state: accepting_repr if state in self.accepting else nonaccepting_repr
+            for state in self.states
+        }
+
+        rep_set = set(partition.values())
+        old_partition_size = len(rep_set)
+        while True:
+            # calculate Fph for one more step
+            newFph: Dict[Hashable, Weight] = {}
+            for state in tqdm(self.states, desc="compute Fph"):
+                outweight = 1
+                for neighbor in self.forward_transitions[state]:
+                    # print(self.transition_weights[(state, neighbor)])
+                    # print(Fph[neighbor])
+                    # print(outweight)
+                    try:
+                        outweight += (
+                            self.transition_weights[(state, neighbor)] * Fph[neighbor]
+                        )
+                    except Exception as e:
+                        print("detected sympy bug")
+                        print(e)
+                        y = sympy.Symbol("y")
+                        print(self.transition_weights[(state, neighbor)])
+                        print(Fph[neighbor])
+                        print(outweight)
+                        outweight_cast = sympy.sympify(outweight).as_poly(x, y)
+                        outweight = (
+                            outweight_cast
+                            + (
+                                self.transition_weights[(state, neighbor)].as_poly(x, y)
+                                * Fph[neighbor].as_poly(x, y)
+                            )
+                        ).as_poly(y)
+                newFph[state] = outweight
+            Fph = newFph
+
+            # collect states into equivalence classes by the signature
+            #  (repr of prev step, Fph)
+            new_eq_classes: DefaultDict[
+                Tuple[Hashable, Weight], Set[Hashable]
+            ] = defaultdict(set)
+            for state in tqdm(self.states, desc="put in eq classes"):
+                new_eq_classes[(partition[state], Fph[state])].add(state)
+
+            # now refactor back in a partition to repeat the process
+            partition = {}
+            for part in tqdm(new_eq_classes.values(), desc="build partition"):
+                rep = next(iter(part))
+                for state in part:
+                    partition[state] = rep
+
+            rep_set = set(partition.values())
+            new_partition_size = len(rep_set)
+            if new_partition_size == old_partition_size:
+                break
+            old_partition_size = new_partition_size
+
+        # Now we're done and we just need to build the new CFSM and return it
+        # To help us, we'll make a dict from representatives to their eq classes
+        rep_to_eq_class: Dict[Hashable, Set[Hashable]] = {}
+        for eq_class in new_eq_classes.values():
+            rep = partition[next(iter(eq_class))]
+            rep_to_eq_class[rep] = eq_class
+
+        newCFSM = CombinatorialFSM(self.main_var)
+        # set start and accepting
+        newCFSM.set_start(partition[self.start])
+        newCFSM.set_accepting({partition[acc] for acc in self.accepting})
+
+        for state1 in tqdm(rep_set, desc="build new CFSM"):
             for state2 in rep_set:
                 new_weight = sum(
                     self.transition_weights[(state1, dest)]
