@@ -36,9 +36,9 @@ class CombinatorialFSM:
         self.start: Optional[Hashable] = None
         self.accepting: Optional[Set[Hashable]] = None
         self.states: Set[Hashable] = set()
-        self.transition_weights: DefaultDict[
-            Tuple[Hashable, Hashable], Weight
-        ] = defaultdict(lambda: sympy.sympify(0))
+        self.transition_weights: DefaultDict[Tuple[Hashable, Hashable], Weight] = (
+            defaultdict(lambda: sympy.sympify(0))
+        )
         self.forward_transitions: DefaultDict[Hashable, Set[Hashable]] = defaultdict(
             set
         )
@@ -265,9 +265,9 @@ class CombinatorialFSM:
 
             # collect states into equivalence classes by the signature
             #  (repr of prev step, Fph)
-            new_eq_classes: DefaultDict[
-                Tuple[Hashable, Weight], Set[Hashable]
-            ] = defaultdict(set)
+            new_eq_classes: DefaultDict[Tuple[Hashable, Weight], Set[Hashable]] = (
+                defaultdict(set)
+            )
             for state in tqdm(self.states, desc="put in eq classes"):
                 new_eq_classes[(partition[state], Fph[state])].add(state)
 
@@ -287,24 +287,24 @@ class CombinatorialFSM:
         # Now we're done and we just need to build the new CFSM and return it
         # To help us, we'll make a dict from representatives to their eq classes
         rep_to_eq_class: Dict[Hashable, Set[Hashable]] = {}
+        state_to_rep: Dict[Hashable, Hashable] = {}
         for eq_class in new_eq_classes.values():
             rep = partition[next(iter(eq_class))]
             rep_to_eq_class[rep] = eq_class
+            for state in eq_class:
+                state_to_rep[state] = rep
 
         newCFSM = CombinatorialFSM(self.main_var)
         # set start and accepting
         newCFSM.set_start(partition[self.start])
         newCFSM.set_accepting({partition[acc] for acc in self.accepting})
 
-        for state1 in tqdm(rep_set, desc="build new CFSM"):
-            for state2 in rep_set:
-                new_weight = sum(
-                    self.transition_weights[(state1, dest)]
-                    for dest in rep_to_eq_class[state2]
-                    if (state1, dest) in self.transition_weights
-                )
-                if new_weight != 0:
-                    newCFSM.add_transition(state1, state2, new_weight)
+        for (state1, state2), weight in tqdm(
+            self.transition_weights.items(), desc="build new CFSM (improved)"
+        ):
+            if state1 not in rep_set:
+                continue
+            newCFSM.add_transition(state1, state_to_rep[state2], weight)
 
         return newCFSM
 
