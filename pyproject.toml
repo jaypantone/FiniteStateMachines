@@ -4,3 +4,31 @@ requires = [
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "finite_state_machines"
+version = "1.2.2"
+description = "A library for manipulating finite state machines"
+readme = "README.md"
+requires-python = ">=3.7"
+license = { text = "MIT License" }
+authors = [
+    { name = "Jay Pantone", email = "jay.pantone@gmail.com" },
+]
+keywords = ["finite state machines", "automata", "combinatorics", "PDA"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+project-urls = { "Bug Tracker" = "https://github.com/jaypantone/FiniteStateMachines/issues" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
