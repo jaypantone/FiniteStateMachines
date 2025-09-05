@@ -28,7 +28,8 @@ classifiers = [
     "Topic :: Education",
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
-project-urls = { "Bug Tracker" = "https://github.com/jaypantone/FiniteStateMachines/issues" }
+[project.urls]
+"Bug Tracker" = "https://github.com/jaypantone/FiniteStateMachines/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
