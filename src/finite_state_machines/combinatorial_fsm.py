@@ -163,15 +163,15 @@ class CombinatorialFSM:
         representative: Dict[Hashable, Hashable] = dict()
         rep_to_eq_class: DefaultDict[Hashable, Set[Hashable]] = defaultdict(set)
         for eq_class in tqdm(eq_class_dict.values(), desc="pass 3/4"):
-            if len(eq_class) > 1:
-                print("The following states are equivalent:")
+            # if len(eq_class) > 1:
+            #     print("The following states are equivalent:")
             rep = min(eq_class)  # type: ignore
             for state in eq_class:
-                if len(eq_class) > 1:
-                    print(state)
+                # if len(eq_class) > 1:
+                #     print(state)
                 representative[state] = rep
                 rep_to_eq_class[rep].add(state)
-            print("DONE")
+            # print("DONE")
         rep_set = set(representative.values())
 
         newCFSM = CombinatorialFSM(self.main_var)
