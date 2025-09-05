@@ -1,6 +1,10 @@
 # Mac stuff
 .DS_STORE
 
+
+# particular
+_how_to_build.txt
+
 # distribution stuff
 /dist
 *.egg-info/
